@@ -1,0 +1,4 @@
+EXTRA_CFLAGS = -Wall -g
+
+my-test-y  = my-opps.o
+obj-m        = my-test.o
