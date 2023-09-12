@@ -6,9 +6,9 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
-#define SUB_DIR_NAME        ("vmx")
-#define PROC_FS_NAME        ("show_vmx")
-#define MODULE_NAME         ("show_vmx")
+#define SUB_DIR_NAME        "vmx"
+#define PROC_FS_NAME        "show_vmx"
+#define MODULE_NAME         "show_vmx"
 
 
 static int proc_open(struct inode *inode, struct file *filp);
@@ -24,38 +24,44 @@ static struct proc_ops proc_ops = {
 
 static int is_intel_cpu(void)
 {
-    int a, b, c, d;
-    /*
+    int a = 0, b, c, d;
     int sig[3] = {
-        0x
-    }
-    */
-    a = 0;
+        0x756e6547, 0x6c65746e, 0x49656e69
+    };
     asm(
-            "mov %3, %%eax\n\t"
-            "cpuid\n\t"
-            "mov %%ebx, %0"
-            "mov %%ecx, %1"
-            "mov %%edx, %2"
-            : "=r"(b), "=r"(c), "=r"(d)
-            : "r"(a)
+        "cpuid\n\t"
+        : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
+        : "0"(a)
     );
-    printk("b: %x, c: %x, d: %x\n", b, c, d);
-    return 0;
+    return b == sig[0] && c == sig[1] && d == sig[2];
+}
+
+static int is_supported_vmx(void)
+{
+    int a = 1, b, c, d;
+
+    if(! is_intel_cpu()) {
+        printk(KERN_ALERT "This is not Intel CPU\n");
+        return 0;
+    }
+
+    asm(
+        "cpuid\n\t"
+        : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
+        : "0"(a)
+    );
+    return c & 0x20;
 }
 
 
 static
 int proc_show(struct seq_file *m, void *v)
 {
-	int c = (m->private) ? (long)(m->private) : 1;
-
-    is_intel_cpu();
-
-    /*
-	for (int i = 0; i < c; ++i)
-		seq_printf(m, "Hello World\n");
-    */
+    if(is_supported_vmx()) {
+		seq_printf(m, "Current CPU support VMX\n");
+    } else {
+		seq_printf(m, "Current CPU not support VMX\n");
+    }
 
 	return 0;
 }
@@ -69,7 +75,7 @@ int proc_open(struct inode *inode, struct file *filp)
 	 * Here, we simply pass it to single_open which will be store as
 	 * the `private` field of struct seq_file struct.
 	 */
-	return single_open(filp, proc_show, PDE_DATA(inode));
+	return single_open(filp, proc_show, NULL);
 }
 
 static
@@ -83,7 +89,7 @@ int __init m_init(void)
 {
 	printk(KERN_WARNING MODULE_NAME " is loaded\n");
 
-	parent = proc_mkdir(SUB_DIR_NAME, NULL);
+	// parent = proc_mkdir(SUB_DIR_NAME, NULL);
 	if (!proc_create(PROC_FS_NAME, 0, parent, &proc_ops))
 		return -ENOMEM;
 
@@ -96,7 +102,7 @@ void __exit m_exit(void)
 	printk(KERN_WARNING MODULE_NAME " unloaded\n");
 
 	remove_proc_entry(PROC_FS_NAME, parent);
-	remove_proc_entry(SUB_DIR_NAME, NULL);
+	// remove_proc_entry(SUB_DIR_NAME, NULL);
 }
 
 module_init(m_init);
